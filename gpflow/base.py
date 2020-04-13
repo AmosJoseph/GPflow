@@ -7,10 +7,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 from tensorflow.python.ops import array_ops
 
-from .config import default_float
-
 DType = Union[np.dtype, tf.DType]
-VariableData = Union[List, Tuple, np.ndarray, int, float]  # todo what's this type?
 Transform = Union[tfp.bijectors.Bijector]
 Prior = Union[tfp.distributions.Distribution]
 TensorLike = Union[tf.Tensor, tf.Variable, np.ndarray]
@@ -319,3 +316,11 @@ def _to_unconstrained(value: tf.Tensor, transform: Transform) -> tf.Tensor:
     if transform is not None:
         return transform.inverse(value)
     return value
+
+
+#
+# deprecated
+#
+
+
+VariableData = Union[List[Any], Tuple[Any, ...], np.ndarray, int, float]
