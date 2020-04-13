@@ -111,7 +111,7 @@ class Parameter(tf.Module):
         return self._unconstrained
 
     @property
-    def transform(self) -> Optional[Transform]:  # todo could make this a typevar and lose the generic
+    def transform(self) -> Optional[Transform]:  # todo could make this a typevar and lose the optional
         return self._transform
 
     @transform.setter
@@ -134,8 +134,7 @@ class Parameter(tf.Module):
         return self._unconstrained.initial_value
 
     def validate_unconstrained_value(self, value: tf.Tensor, dtype: DType) -> tf.Tensor:
-        value = _cast_to_dtype(value, dtype)
-        unconstrained_value = _to_unconstrained(value, self.transform)
+        unconstrained_value = _to_unconstrained(tf.cast(value, dtype), self.transform)
         message = (
             "gpflow.Parameter: the value to be assigned is incompatible with this parameter's "
             "transform (the corresponding unconstrained value has NaN or Inf) and hence cannot be "
@@ -310,28 +309,13 @@ Parameter._OverloadAllOperators()
 tf.register_tensor_conversion_function(Parameter, lambda x, *args, **kwds: x.read_value())
 
 
-def _cast_to_dtype(value: VariableData, dtype: Optional[DType] = None) -> tf.Tensor:
-    if dtype is None:
-        dtype = default_float()
-
-    if tf.is_tensor(value):
-        # NOTE(awav) TF2.2 resolves issue with cast.
-        # From TF2.2, `tf.cast` can be used alone instead of this auxiliary function.
-        # workaround for https://github.com/tensorflow/tensorflow/issues/35938
-        return tf.cast(value, dtype)
-    else:
-        return tf.convert_to_tensor(value, dtype=dtype)
-
-
-# todo these types are wrong, and i've used them to work out types above, so they may also be wrong
-#  I need to talk to Artem to find out the role of VariableData and find out why there's a mismatch
-def _to_constrained(value: VariableData, transform: Transform) -> tf.Tensor:
+def _to_constrained(value: tf.Tensor, transform: Transform) -> tf.Tensor:
     if transform is not None:
         return transform.forward(value)
     return value
 
 
-def _to_unconstrained(value: VariableData, transform: Transform) -> tf.Tensor:
+def _to_unconstrained(value: tf.Tensor, transform: Transform) -> tf.Tensor:
     if transform is not None:
         return transform.inverse(value)
     return value
