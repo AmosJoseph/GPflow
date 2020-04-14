@@ -1,16 +1,30 @@
 import functools
 from enum import Enum
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+from IPython.lib import pretty
 from tensorflow.python.ops import array_ops
 
+from .config import default_float
+
 DType = Union[np.dtype, tf.DType]
+VariableData = Union[List, Tuple, np.ndarray, int, float]
+TensorLike = Union[tf.Tensor, tf.Variable, np.ndarray]  # todo waiting on TensorTypes from other PR for multipledispatch to work
 Transform = Union[tfp.bijectors.Bijector]
 Prior = Union[tfp.distributions.Distribution]
-TensorLike = Union[tf.Tensor, tf.Variable, np.ndarray]
+_Scalar = Union[int, float]  # todo allow bool?
+# NOTE: Any given _NestedSeq can contain both floats and ints. It's only NumPy and TensorFlow
+#  constructs that can't mix them
+_NestedSeq = Union[
+    Sequence[_Scalar],
+    Sequence[Sequence[_Scalar]],
+    Sequence[Sequence[Sequence[_Scalar]]],
+    Sequence[Sequence[Sequence[Sequence[Any]]]]  # catch all for rank > 3
+]
+_ArrayOrScalar = Union[_Scalar, _NestedSeq]
 
 
 def _IS_PARAMETER(o: Any) -> bool:
@@ -29,7 +43,7 @@ class PriorOn(Enum):
 class Parameter(tf.Module):
     def __init__(
         self,
-        value: TensorLike,
+        value: Union[_ArrayOrScalar, TensorLike],
         *,
         transform: Optional[Transform] = None,
         prior: Optional[Prior] = None,
@@ -108,7 +122,7 @@ class Parameter(tf.Module):
         return self._unconstrained
 
     @property
-    def transform(self) -> Optional[Transform]:  # todo could make this a typevar and lose the optional
+    def transform(self) -> Optional[Transform]:
         return self._transform
 
     @transform.setter
@@ -130,8 +144,13 @@ class Parameter(tf.Module):
     def initial_value(self) -> tf.Tensor:
         return self._unconstrained.initial_value
 
-    def validate_unconstrained_value(self, value: tf.Tensor, dtype: DType) -> tf.Tensor:
-        unconstrained_value = _to_unconstrained(tf.cast(value, dtype), self.transform)
+    def validate_unconstrained_value(
+            self,
+            value: Union[_ArrayOrScalar, TensorLike],
+            dtype: DType
+    ) -> tf.Tensor:
+        value = _cast_to_dtype(value, dtype)
+        unconstrained_value = _to_unconstrained(value, self.transform)
         message = (
             "gpflow.Parameter: the value to be assigned is incompatible with this parameter's "
             "transform (the corresponding unconstrained value has NaN or Inf) and hence cannot be "
@@ -141,7 +160,7 @@ class Parameter(tf.Module):
 
     def assign(
             self,
-            value: tf.Tensor,
+            value: Union[_ArrayOrScalar, TensorLike],
             use_locking: bool = False,
             name: Optional[str] = None,
             read_value: bool = True
@@ -172,7 +191,7 @@ class Parameter(tf.Module):
         )
 
     @property
-    def is_tensor_like(self) -> bool:
+    def is_tensor_like(self) -> bool:  # todo type is a guess
         """
         This method means that TensorFlow's `tensor_util.is_tensor` function
         will return `True`
@@ -188,7 +207,7 @@ class Parameter(tf.Module):
         return self._unconstrained.initializer
 
     @property
-    def device(self):  # todo type
+    def device(self) -> Optional[str]:
         return self._unconstrained.device
 
     @property
@@ -281,6 +300,19 @@ class Parameter(tf.Module):
     # with ndarrays.
     __array_priority__ = 100
 
+#
+#
+#
+#
+#
+# done to here
+#
+#
+#
+#
+#
+#
+
 
 class Module(tf.Module):
     @property
@@ -296,7 +328,7 @@ class Module(tf.Module):
 
         return tabulate_module_summary(self, tablefmt="html")
 
-    def _repr_pretty_(self, p, cycle):  # todo type
+    def _repr_pretty_(self, p: pretty.RepresentationPrinter, cycle: bool) -> None:
         from .utilities import tabulate_module_summary
 
         p.text(tabulate_module_summary(self, tablefmt=""))
@@ -304,6 +336,24 @@ class Module(tf.Module):
 
 Parameter._OverloadAllOperators()
 tf.register_tensor_conversion_function(Parameter, lambda x, *args, **kwds: x.read_value())
+
+
+def _cast_to_dtype(
+        value: Union[_ArrayOrScalar, TensorLike],
+        dtype: Optional[DType] = None
+) -> tf.Tensor:
+    if dtype is None:
+        dtype = default_float()
+
+    if tf.is_tensor(value):
+        # NOTE(awav) TF2.2 resolves issue with cast.
+        # From TF2.2, `tf.cast` can be used alone instead of this auxiliary function.
+        # workaround for https://github.com/tensorflow/tensorflow/issues/35938
+        # todo this doesn't guarantee a Tensor. I assume we require it to be a Tensor, and that it
+        #  will typically be a Tensor, but how to type this?
+        return tf.cast(value, dtype)
+    else:
+        return tf.convert_to_tensor(value, dtype=dtype)
 
 
 def _to_constrained(value: tf.Tensor, transform: Transform) -> tf.Tensor:
@@ -316,11 +366,3 @@ def _to_unconstrained(value: tf.Tensor, transform: Transform) -> tf.Tensor:
     if transform is not None:
         return transform.inverse(value)
     return value
-
-
-#
-# deprecated
-#
-
-
-VariableData = Union[List[Any], Tuple[Any, ...], np.ndarray, int, float]
