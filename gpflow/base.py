@@ -12,7 +12,7 @@ from .config import default_float
 
 DType = Union[np.dtype, tf.DType]
 VariableData = Union[List, Tuple, np.ndarray, int, float]  # deprecated
-TensorLike = Union[tf.Tensor, tf.Variable, np.ndarray]  # todo waiting on TensorTypes from other PR for multipledispatch to work
+_TensorLikeExternalTypes = Union[tf.Tensor, tf.Variable, np.ndarray]  # todo waiting on TensorTypes from other PR for multipledispatch to work
 
 Transform = Union[tfp.bijectors.Bijector]
 Prior = Union[tfp.distributions.Distribution]
@@ -24,7 +24,7 @@ _NestedSeq = Union[
     Sequence[Sequence[Sequence[S]]],
     Sequence[Sequence[Sequence[Sequence[Any]]]]  # catch all for rank > 3
 ]
-_NativeScalar = Union[int, float, bool]
+_NativeScalar = Union[int, float]
 _ArrayOrScalar = Union[_NativeScalar, _NestedSeq[_NativeScalar]]
 
 
@@ -44,7 +44,7 @@ class PriorOn(Enum):
 class Parameter(tf.Module):
     def __init__(
         self,
-        value: Union[_ArrayOrScalar, TensorLike],
+        value: Union[_ArrayOrScalar, _TensorLikeExternalTypes, "Parameter"],
         *,
         transform: Optional[Transform] = None,
         prior: Optional[Prior] = None,
@@ -147,7 +147,7 @@ class Parameter(tf.Module):
 
     def validate_unconstrained_value(
             self,
-            value: Union[_ArrayOrScalar, TensorLike],
+            value: Union[_ArrayOrScalar, _TensorLikeExternalTypes, "Parameter"],
             dtype: DType
     ) -> tf.Tensor:
         value = _cast_to_dtype(value, dtype)
@@ -161,7 +161,7 @@ class Parameter(tf.Module):
 
     def assign(
             self,
-            value: Union[_ArrayOrScalar, TensorLike],
+            value: Union[_ArrayOrScalar, _TensorLikeExternalTypes, "Parameter"],
             use_locking: bool = False,
             name: Optional[str] = None,
             read_value: bool = True
@@ -302,6 +302,12 @@ class Parameter(tf.Module):
     __array_priority__ = 100
 
 
+Parameter._OverloadAllOperators()
+tf.register_tensor_conversion_function(Parameter, lambda x, *args, **kwds: x.read_value())
+
+TensorLike = Union[_TensorLikeExternalTypes, Parameter]
+
+
 class Module(tf.Module):
     @property
     def parameters(self) -> Tuple[Parameter, ...]:
@@ -320,10 +326,6 @@ class Module(tf.Module):
         from .utilities import tabulate_module_summary
 
         p.text(tabulate_module_summary(self, tablefmt=""))
-
-
-Parameter._OverloadAllOperators()
-tf.register_tensor_conversion_function(Parameter, lambda x, *args, **kwds: x.read_value())
 
 
 def _cast_to_dtype(
