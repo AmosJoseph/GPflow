@@ -300,19 +300,6 @@ class Parameter(tf.Module):
     # with ndarrays.
     __array_priority__ = 100
 
-#
-#
-#
-#
-#
-# done to here
-#
-#
-#
-#
-#
-#
-
 
 class Module(tf.Module):
     @property
