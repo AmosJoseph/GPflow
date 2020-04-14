@@ -1,6 +1,6 @@
 import functools
 from enum import Enum
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any, List, Optional, Sequence, Tuple, TypeVar, Union
 
 import numpy as np
 import tensorflow as tf
@@ -11,20 +11,21 @@ from tensorflow.python.ops import array_ops
 from .config import default_float
 
 DType = Union[np.dtype, tf.DType]
-VariableData = Union[List, Tuple, np.ndarray, int, float]
+VariableData = Union[List, Tuple, np.ndarray, int, float]  # deprecated
 TensorLike = Union[tf.Tensor, tf.Variable, np.ndarray]  # todo waiting on TensorTypes from other PR for multipledispatch to work
+
 Transform = Union[tfp.bijectors.Bijector]
 Prior = Union[tfp.distributions.Distribution]
-_Scalar = Union[int, float]  # todo allow bool?
-# NOTE: Any given _NestedSeq can contain both floats and ints. It's only NumPy and TensorFlow
-#  constructs that can't mix them
+
+S = TypeVar("S")
 _NestedSeq = Union[
-    Sequence[_Scalar],
-    Sequence[Sequence[_Scalar]],
-    Sequence[Sequence[Sequence[_Scalar]]],
+    Sequence[S],
+    Sequence[Sequence[S]],
+    Sequence[Sequence[Sequence[S]]],
     Sequence[Sequence[Sequence[Sequence[Any]]]]  # catch all for rank > 3
 ]
-_ArrayOrScalar = Union[_Scalar, _NestedSeq]
+_NativeScalar = Union[int, float, bool]
+_ArrayOrScalar = Union[_NativeScalar, _NestedSeq[_NativeScalar]]
 
 
 def _IS_PARAMETER(o: Any) -> bool:
