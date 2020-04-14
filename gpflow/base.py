@@ -149,7 +149,7 @@ class Parameter(tf.Module):
             self,
             value: Union[_ArrayOrScalar, _TensorLikeExternalTypes, "Parameter"],
             dtype: DType
-    ) -> tf.Tensor:
+    ) -> Union[tf.Tensor, tf.Variable]:
         value = _cast_to_dtype(value, dtype)
         unconstrained_value = _to_unconstrained(value, self.transform)
         message = (
@@ -331,7 +331,7 @@ class Module(tf.Module):
 def _cast_to_dtype(
         value: Union[_ArrayOrScalar, TensorLike],
         dtype: Optional[DType] = None
-) -> tf.Tensor:
+) -> Union[tf.Tensor, tf.Variable]:
     if dtype is None:
         dtype = default_float()
 
@@ -339,20 +339,20 @@ def _cast_to_dtype(
         # NOTE(awav) TF2.2 resolves issue with cast.
         # From TF2.2, `tf.cast` can be used alone instead of this auxiliary function.
         # workaround for https://github.com/tensorflow/tensorflow/issues/35938
-        # todo this doesn't guarantee a Tensor. I assume we require it to be a Tensor, and that it
-        #  will typically be a Tensor, but how to type this?
         return tf.cast(value, dtype)
     else:
         return tf.convert_to_tensor(value, dtype=dtype)
 
 
-def _to_constrained(value: tf.Tensor, transform: Transform) -> tf.Tensor:
+def _to_constrained(value: tf.Tensor, transform: Optional[Transform]) -> tf.Tensor:
     if transform is not None:
         return transform.forward(value)
     return value
 
 
-def _to_unconstrained(value: tf.Tensor, transform: Transform) -> tf.Tensor:
+def _to_unconstrained(
+        value: Union[tf.Tensor, tf.Variable], transform: Optional[Transform]
+) -> Union[tf.Tensor, tf.Variable]:
     if transform is not None:
         return transform.inverse(value)
     return value
