@@ -149,7 +149,7 @@ class Parameter(tf.Module):
             self,
             value: Union[_ArrayOrScalar, _TensorLikeExternalTypes, "Parameter"],
             dtype: DType
-    ) -> Union[tf.Tensor, tf.Variable]:
+    ) -> tf.Tensor:
         value = _cast_to_dtype(value, dtype)
         unconstrained_value = _to_unconstrained(value, self.transform)
         message = (
@@ -350,9 +350,7 @@ def _to_constrained(value: tf.Tensor, transform: Optional[Transform]) -> tf.Tens
     return value
 
 
-def _to_unconstrained(
-        value: Union[tf.Tensor, tf.Variable], transform: Optional[Transform]
-) -> Union[tf.Tensor, tf.Variable]:
+def _to_unconstrained(value: TensorLike, transform: Optional[Transform]) -> TensorLike:
     if transform is not None:
         return transform.inverse(value)
     return value
